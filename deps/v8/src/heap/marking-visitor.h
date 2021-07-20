@@ -105,7 +105,7 @@ class MarkingVisitorBase : public HeapVisitor<int, ConcreteVisitor> {
                      MarkingWorklists::Local* local_marking_worklists,
                      WeakObjects* weak_objects, Heap* heap,
                      unsigned mark_compact_epoch,
-                     BytecodeFlushMode bytecode_flush_mode,
+                     CodeFlushMode bytecode_flush_mode,
                      bool is_embedder_tracing_enabled, bool is_forced_gc)
       : local_marking_worklists_(local_marking_worklists),
         weak_objects_(weak_objects),
@@ -153,6 +153,11 @@ class MarkingVisitorBase : public HeapVisitor<int, ConcreteVisitor> {
                                MaybeObjectSlot end) final {
     VisitPointersImpl(host, start, end);
   }
+  V8_INLINE void VisitCodePointer(HeapObject host, CodeObjectSlot slot) final {
+    CHECK(V8_EXTERNAL_CODE_SPACE_BOOL);
+    // TODO(v8:11880): support external code space.
+    VisitPointer(host, MaybeObjectSlot(slot));
+  }
   V8_INLINE void VisitEmbeddedPointer(Code host, RelocInfo* rinfo) final;
   V8_INLINE void VisitCodeTarget(Code host, RelocInfo* rinfo) final;
   void VisitCustomWeakPointers(HeapObject host, ObjectSlot start,
@@ -199,7 +204,7 @@ class MarkingVisitorBase : public HeapVisitor<int, ConcreteVisitor> {
   Heap* const heap_;
   const int task_id_;
   const unsigned mark_compact_epoch_;
-  const BytecodeFlushMode bytecode_flush_mode_;
+  const CodeFlushMode bytecode_flush_mode_;
   const bool is_embedder_tracing_enabled_;
   const bool is_forced_gc_;
   const bool is_shared_heap_;

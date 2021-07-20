@@ -229,6 +229,7 @@ v8_source_set("unittests_sources") {
     "base/template-utils-unittest.cc",
     "base/threaded-list-unittest.cc",
     "base/utils/random-number-generator-unittest.cc",
+    "base/vector-unittest.cc",
     "base/vlq-base64-unittest.cc",
     "base/vlq-unittest.cc",
     "codegen/aligned-slot-allocator-unittest.cc",
@@ -386,7 +387,6 @@ v8_source_set("unittests_sources") {
     "utils/detachable-vector-unittest.cc",
     "utils/locked-queue-unittest.cc",
     "utils/utils-unittest.cc",
-    "utils/vector-unittest.cc",
     "zone/zone-allocator-unittest.cc",
     "zone/zone-chunk-list-unittest.cc",
     "zone/zone-unittest.cc",
@@ -486,6 +486,12 @@ v8_source_set("unittests_sources") {
 
   if (is_win && v8_enable_webassembly) {
     sources += [ "wasm/trap-handler-win-unittest.cc" ]
+  }
+
+  # Include this test only on arm64 simulator builds on x64 on Linux.
+  if (current_cpu == "x64" && v8_current_cpu == "arm64" && is_linux &&
+      v8_enable_webassembly) {
+    sources += [ "wasm/trap-handler-simulator-unittest.cc" ]
   }
 
   configs = [

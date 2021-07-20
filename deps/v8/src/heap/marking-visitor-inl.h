@@ -10,7 +10,7 @@
 #include "src/heap/objects-visiting.h"
 #include "src/heap/spaces.h"
 #include "src/objects/objects.h"
-#include "src/snapshot/deserializer.h"
+#include "src/objects/smi.h"
 
 namespace v8 {
 namespace internal {
@@ -132,12 +132,19 @@ int MarkingVisitorBase<ConcreteVisitor, MarkingState>::VisitBytecodeArray(
 
 template <typename ConcreteVisitor, typename MarkingState>
 int MarkingVisitorBase<ConcreteVisitor, MarkingState>::VisitJSFunction(
-    Map map, JSFunction object) {
-  int size = concrete_visitor()->VisitJSObjectSubclass(map, object);
-  // Check if the JSFunction needs reset due to bytecode being flushed.
-  if (bytecode_flush_mode_ != BytecodeFlushMode::kDoNotFlushBytecode &&
-      object.NeedsResetDueToFlushedBytecode()) {
-    weak_objects_->flushed_js_functions.Push(task_id_, object);
+    Map map, JSFunction js_function) {
+  int size = concrete_visitor()->VisitJSObjectSubclass(map, js_function);
+  if (js_function.ShouldFlushBaselineCode(bytecode_flush_mode_)) {
+    weak_objects_->baseline_flushing_candidates.Push(task_id_, js_function);
+  } else {
+    VisitPointer(js_function, js_function.RawField(JSFunction::kCodeOffset));
+    // TODO(mythria): Consider updating the check for ShouldFlushBaselineCode to
+    // also include cases where there is old bytecode even when there is no
+    // baseline code and remove this check here.
+    if (bytecode_flush_mode_ != CodeFlushMode::kDoNotFlushCode &&
+        js_function.NeedsResetDueToFlushedBytecode()) {
+      weak_objects_->flushed_js_functions.Push(task_id_, js_function);
+    }
   }
   return size;
 }
@@ -330,7 +337,7 @@ int MarkingVisitorBase<ConcreteVisitor, MarkingState>::VisitWeakCell(
   this->VisitMapPointer(weak_cell);
   WeakCell::BodyDescriptor::IterateBody(map, weak_cell, size, this);
   HeapObject target = weak_cell.relaxed_target();
-  HeapObject unregister_token = HeapObject::cast(weak_cell.unregister_token());
+  HeapObject unregister_token = weak_cell.relaxed_unregister_token();
   concrete_visitor()->SynchronizePageAccess(target);
   concrete_visitor()->SynchronizePageAccess(unregister_token);
   if (concrete_visitor()->marking_state()->IsBlackOrGrey(target) &&
@@ -413,7 +420,7 @@ int MarkingVisitorBase<ConcreteVisitor, MarkingState>::VisitDescriptorsForMap(
   // If the descriptors are a Smi, then this Map is in the process of being
   // deserialized, and doesn't yet have an initialized descriptor field.
   if (maybe_descriptors.IsSmi()) {
-    DCHECK_EQ(maybe_descriptors, Deserializer::uninitialized_field_value());
+    DCHECK_EQ(maybe_descriptors, Smi::uninitialized_deserialization_value());
     return 0;
   }
 
